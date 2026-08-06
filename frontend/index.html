@@ -1,0 +1,2373 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yessenov Caspian Sea Monitoring</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root {
+  --bg-primary: #030d18;
+  --bg-secondary: #061a2e;
+  --bg-card: #071f36;
+  --bg-card2: #0a2744;
+  --accent-blue: #00b4d8;
+  --accent-teal: #0cffcb;
+  --accent-orange: #ff6b35;
+  --accent-red: #ff2d55;
+  --accent-yellow: #ffd60a;
+  --accent-green: #06d6a0;
+  --text-primary: #e0f4ff;
+  --text-secondary: #7ab3cc;
+  --text-dim: #3a6a88;
+  --border: #0d3a5c;
+  --border-bright: #1a5a8a;
+  --grid-line: rgba(0,180,216,0.07);
+  --font-mono: 'Share Tech Mono', monospace;
+  --font-main: 'Exo 2', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-main);
+  overflow-x: hidden;
+  background-image: 
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 40px 40px;
+  min-height: 100vh;
+}
+
+/* SCANLINE EFFECT */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* TOP BAR */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 60px;
+  background: rgba(6,26,46,0.95);
+  border-bottom: 2px solid var(--accent-blue);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  position: relative;
+}
+
+.logo-icon svg { filter: drop-shadow(0 0 6px var(--accent-teal)); }
+
+.logo-text {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--accent-teal);
+  text-shadow: 0 0 20px rgba(12,255,203,0.4);
+}
+
+.logo-sub {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-secondary);
+  letter-spacing: 2px;
+  display: block;
+  margin-top: -4px;
+}
+
+.topbar-center {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+
+.nav-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-main);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 6px 16px;
+  border-radius: 2px;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.nav-btn.active, .nav-btn:hover {
+  color: var(--accent-teal);
+  background: rgba(12,255,203,0.08);
+}
+
+.nav-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0; right: 0;
+  height: 2px;
+  background: var(--accent-teal);
+  box-shadow: 0 0 8px var(--accent-teal);
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: 0 0 10px var(--accent-green);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.status-dot.warning { background: var(--accent-yellow); box-shadow: 0 0 10px var(--accent-yellow); }
+.status-dot.error { background: var(--accent-red); box-shadow: 0 0 10px var(--accent-red); animation: blink 0.5s step-end infinite; }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
+}
+
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+.clock {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--accent-blue);
+  letter-spacing: 2px;
+}
+
+/* MAIN LAYOUT */
+.app-container {
+  display: grid;
+  grid-template-columns: 260px 1fr 300px;
+  grid-template-rows: auto 1fr;
+  height: calc(100vh - 60px);
+  overflow: hidden;
+}
+
+/* SIDEBAR LEFT */
+.sidebar-left {
+  background: rgba(7,31,54,0.8);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebar-left::-webkit-scrollbar { width: 4px; }
+.sidebar-left::-webkit-scrollbar-track { background: transparent; }
+.sidebar-left::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+.section-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+/* BUOY CARDS */
+.buoy-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.buoy-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--accent-blue);
+}
+
+.buoy-card.active {
+  border-color: var(--accent-teal);
+  background: var(--bg-card2);
+}
+
+.buoy-card.active::before { background: var(--accent-teal); box-shadow: 0 0 8px var(--accent-teal); }
+.buoy-card.alert { border-color: var(--accent-orange); }
+.buoy-card.alert::before { background: var(--accent-orange); box-shadow: 0 0 8px var(--accent-orange); }
+
+.buoy-card:hover { border-color: var(--accent-blue); transform: translateX(2px); }
+
+.buoy-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.buoy-id {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent-teal);
+  font-weight: bold;
+}
+
+.buoy-status-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.badge-online { background: rgba(6,214,160,0.15); color: var(--accent-green); border: 1px solid rgba(6,214,160,0.3); }
+.badge-alert { background: rgba(255,107,53,0.15); color: var(--accent-orange); border: 1px solid rgba(255,107,53,0.3); }
+.badge-offline { background: rgba(255,45,85,0.1); color: var(--accent-red); border: 1px solid rgba(255,45,85,0.2); }
+
+.buoy-name {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.buoy-mini-data {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.mini-param {
+  display: flex;
+  flex-direction: column;
+}
+
+.mini-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.mini-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.mini-value.warning { color: var(--accent-yellow); }
+.mini-value.danger { color: var(--accent-red); }
+.mini-value.good { color: var(--accent-green); }
+
+.buoy-last-seen {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-top: 6px;
+}
+
+/* LORA STATS */
+.lora-stats {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px;
+}
+
+.lora-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(13,58,92,0.5);
+}
+
+.lora-stat-row:last-child { border-bottom: none; }
+.lora-stat-label { font-size: 10px; color: var(--text-secondary); }
+.lora-stat-value { font-family: var(--font-mono); font-size: 11px; color: var(--accent-blue); }
+
+/* MAIN CONTENT */
+.main-content {
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.main-content::-webkit-scrollbar { width: 4px; }
+.main-content::-webkit-scrollbar-track { background: transparent; }
+.main-content::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+/* SENSOR GRID */
+.sensor-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.sensor-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+}
+
+.sensor-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--card-accent, var(--accent-blue));
+  box-shadow: 0 0 8px var(--card-accent, var(--accent-blue));
+}
+
+.sensor-card:hover {
+  border-color: var(--card-accent, var(--accent-blue));
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.sensor-card.status-warning { border-color: var(--accent-yellow); --card-accent: var(--accent-yellow); }
+.sensor-card.status-danger { border-color: var(--accent-red); --card-accent: var(--accent-red); animation: danger-pulse 1.5s ease-in-out infinite; }
+.sensor-card.status-good { --card-accent: var(--accent-green); }
+
+@keyframes danger-pulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(255,45,85,0); }
+  50% { box-shadow: 0 0 20px rgba(255,45,85,0.3); }
+}
+
+.sensor-icon-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sensor-emoji { font-size: 18px; }
+
+.sensor-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.sensor-value-big {
+  font-family: var(--font-mono);
+  font-size: 32px;
+  font-weight: normal;
+  color: var(--text-primary);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.sensor-value-big span {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
+.sensor-range-bar {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+.sensor-range-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--card-accent, var(--accent-blue));
+  box-shadow: 0 0 6px var(--card-accent, var(--accent-blue));
+  transition: width 0.8s ease;
+}
+
+.sensor-trend {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.trend-up { color: var(--accent-red); }
+.trend-down { color: var(--accent-green); }
+.trend-stable { color: var(--accent-blue); }
+
+/* CHART PANELS */
+.chart-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.chart-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  position: relative;
+}
+
+.chart-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.chart-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+.chart-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.time-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 2px 8px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.time-btn.active, .time-btn:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  background: rgba(0,180,216,0.1);
+}
+
+.chart-canvas-wrap {
+  position: relative;
+  height: 160px;
+}
+
+/* MAP PANEL */
+.map-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}
+
+.map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card2);
+}
+
+#caspian-map {
+  height: 460px;
+  filter: saturate(0.4) hue-rotate(180deg) brightness(0.6);
+  transition: filter 0.3s;
+}
+
+#caspian-map:hover { filter: saturate(0.6) hue-rotate(180deg) brightness(0.7); }
+
+/* SIDEBAR RIGHT */
+.sidebar-right {
+  background: rgba(7,31,54,0.8);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebar-right::-webkit-scrollbar { width: 4px; }
+.sidebar-right::-webkit-scrollbar-track { background: transparent; }
+.sidebar-right::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+/* ALERT LIST */
+.alert-item {
+  background: var(--bg-card);
+  border-left: 3px solid var(--accent-orange);
+  border-radius: 0 4px 4px 0;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  animation: slide-in 0.3s ease;
+}
+
+@keyframes slide-in {
+  from { transform: translateX(20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.alert-item.critical { border-left-color: var(--accent-red); }
+.alert-item.info { border-left-color: var(--accent-blue); }
+.alert-item.resolved { border-left-color: var(--accent-green); opacity: 0.6; }
+
+.alert-type {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent-orange);
+  margin-bottom: 4px;
+}
+
+.alert-item.critical .alert-type { color: var(--accent-red); }
+.alert-item.info .alert-type { color: var(--accent-blue); }
+.alert-item.resolved .alert-type { color: var(--accent-green); }
+
+.alert-msg { font-size: 11px; color: var(--text-primary); line-height: 1.4; }
+.alert-time { font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); margin-top: 4px; }
+
+/* PACKET DECODER */
+.packet-decoder {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.decoder-header {
+  background: var(--bg-card2);
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--accent-blue);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.decoder-live { 
+  display: flex; 
+  align-items: center; 
+  gap: 6px;
+  font-size: 9px;
+  color: var(--accent-green);
+}
+
+.packet-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.packet-list::-webkit-scrollbar { width: 3px; }
+.packet-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+.packet-item {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 4px 6px;
+  border-radius: 2px;
+  margin-bottom: 3px;
+  line-height: 1.6;
+  border: 1px solid transparent;
+  animation: packet-in 0.2s ease;
+}
+
+@keyframes packet-in {
+  from { background: rgba(12,255,203,0.1); }
+  to { background: transparent; }
+}
+
+.packet-item:hover { background: rgba(0,180,216,0.05); border-color: var(--border); }
+.packet-ts { color: var(--text-dim); margin-right: 8px; }
+.packet-id { color: var(--accent-teal); margin-right: 6px; }
+.packet-hex { color: var(--accent-blue); }
+.packet-rssi { color: var(--accent-yellow); margin-left: 6px; font-size: 9px; }
+
+/* STATS WIDGET */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.stat-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px;
+  text-align: center;
+}
+
+.stat-num {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  color: var(--accent-teal);
+  display: block;
+  text-shadow: 0 0 10px rgba(12,255,203,0.3);
+}
+
+.stat-desc {
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* BOTTOM STATUS BAR */
+.statusbar {
+  grid-column: 1 / -1;
+  height: 28px;
+  background: rgba(6,26,46,0.95);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 24px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.statusbar span { color: var(--accent-blue); }
+
+/* TAB VIEWS */
+.tab-view { display: none; }
+.tab-view.active { display: flex; flex-direction: column; gap: 16px; }
+
+/* SETTINGS PANEL */
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.settings-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 20px;
+}
+
+.settings-card h3 {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--accent-teal);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.form-group {
+  margin-bottom: 12px;
+}
+
+.form-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: block;
+  margin-bottom: 6px;
+  letter-spacing: 1px;
+}
+
+.form-input {
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.form-input:focus { border-color: var(--accent-blue); }
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.btn-primary {
+  background: rgba(12,255,203,0.1);
+  border: 1px solid var(--accent-teal);
+  color: var(--accent-teal);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 8px 20px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  background: rgba(12,255,203,0.2);
+  box-shadow: 0 0 12px rgba(12,255,203,0.2);
+}
+
+/* THRESHOLD TABLE */
+.threshold-table { width: 100%; border-collapse: collapse; }
+.threshold-table th {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.threshold-table td {
+  padding: 8px;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(13,58,92,0.4);
+}
+
+.threshold-table tr:hover td { background: rgba(0,180,216,0.04); }
+
+.threshold-input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 2px;
+  width: 70px;
+  outline: none;
+}
+
+.threshold-input:focus { border-color: var(--accent-blue); }
+
+/* HISTORY VIEW */
+.history-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 20px;
+}
+
+.history-chart-wrap {
+  height: 200px;
+  margin-top: 12px;
+}
+
+/* CORNER DECORATIONS */
+.corner-dec {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: var(--accent-teal);
+  border-style: solid;
+  opacity: 0.5;
+}
+
+.corner-tl { top: 6px; left: 6px; border-width: 1px 0 0 1px; }
+.corner-tr { top: 6px; right: 6px; border-width: 1px 1px 0 0; }
+.corner-bl { bottom: 6px; left: 6px; border-width: 0 0 1px 1px; }
+.corner-br { bottom: 6px; right: 6px; border-width: 0 1px 1px 0; }
+
+/* SCROLLBAR GLOBAL */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+/* ANIMATED NUMBER */
+.sensor-value-big { transition: color 0.3s; }
+
+/* =============================================
+   📱 MOBILE RESPONSIVE — всё под телефон
+   ============================================= */
+@media (max-width: 900px) {
+
+  /* Топбар — скрываем лишнее, уменьшаем */
+  .topbar {
+    padding: 0 12px;
+    height: 52px;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  .logo-text { font-size: 14px; letter-spacing: 1px; }
+  .logo-sub { display: none; }
+  .logo-icon { width: 28px; height: 28px; }
+  .topbar-center { gap: 4px; }
+  .nav-btn { font-size: 9px; letter-spacing: 1px; padding: 4px 8px; }
+  .connection-status span { display: none; }
+  .clock { font-size: 11px; letter-spacing: 1px; }
+
+  /* Главный грид — в одну колонку */
+  .app-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    height: auto;
+    overflow: visible;
+  }
+
+  /* Боковые панели — горизонтальный скролл сверху/снизу */
+  .sidebar-left {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow-y: visible;
+    overflow-x: auto;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .sidebar-right {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: 10px;
+    gap: 8px;
+  }
+
+  /* Роллер в мобиле — компактный горизонтальный */
+  .roller-wrapper {
+    min-width: 240px;
+    flex-shrink: 0;
+  }
+  .roller-viewport { height: 180px; padding: 56px 0; }
+  .roller-item { height: 56px; }
+  .roller-item-vals { display: none; }
+  .roller-fade-top { height: 44px; }
+  .roller-fade-bottom { height: 44px; }
+  .roller-highlight { height: 56px; }
+
+  /* LoRa stats — горизонтально в строчку */
+  .lora-stats { min-width: 200px; flex-shrink: 0; font-size: 10px; }
+  .section-title { white-space: nowrap; }
+
+  /* Основной контент */
+  .main-content {
+    padding: 10px;
+    gap: 10px;
+    overflow: visible;
+  }
+
+  /* Сетка датчиков — 2 колонки на телефоне */
+  .sensor-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .sensor-card { padding: 10px; }
+  .sensor-value-big { font-size: 22px; }
+  .sensor-value-big span { font-size: 11px; }
+
+  /* Графики — в одну колонку */
+  .chart-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .chart-canvas-wrap { height: 140px; }
+  .chart-title { font-size: 10px; letter-spacing: 1px; }
+
+  /* Карта — полная ширина */
+  #caspian-map { height: 320px; }
+  .map-header { flex-direction: column; gap: 6px; align-items: flex-start; }
+
+  /* Настройки */
+  .settings-grid { grid-template-columns: 1fr; }
+  .settings-card[style*="grid-column"] { grid-column: 1; }
+
+  /* Статус бар */
+  .statusbar {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    height: auto;
+    padding: 6px 10px;
+    font-size: 9px;
+  }
+
+  /* Статистика 2x2 */
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .stat-num { font-size: 18px; }
+
+  /* История */
+  .history-panel { padding: 12px; }
+  .history-chart-wrap { height: 150px; }
+}
+
+@media (max-width: 480px) {
+  /* Очень маленькие экраны */
+  .topbar-center { display: none; }
+
+  /* Нижнее мобильное меню вместо топбара */
+  body {
+    padding-bottom: 56px;
+  }
+
+  .mobile-nav {
+    display: flex !important;
+  }
+
+  .sensor-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .sensor-value-big { font-size: 20px; }
+  .sensor-card { padding: 8px; }
+  .sensor-emoji { font-size: 14px; }
+  .sensor-label { font-size: 8px; }
+
+  .logo-text { font-size: 12px; }
+  .nav-btn { font-size: 8px; padding: 3px 6px; }
+
+  #caspian-map { height: 260px; }
+}
+
+/* MOBILE BOTTOM NAVIGATION BAR */
+.mobile-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 56px;
+  background: rgba(6,26,46,0.98);
+  border-top: 2px solid var(--accent-blue);
+  z-index: 200;
+  backdrop-filter: blur(10px);
+}
+
+.mobile-nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: color 0.2s;
+  padding: 4px 0;
+}
+
+.mobile-nav-btn .icon { font-size: 18px; line-height: 1; }
+.mobile-nav-btn.active { color: var(--accent-teal); }
+.mobile-nav-btn.active .icon { filter: drop-shadow(0 0 4px var(--accent-teal)); }
+
+/* =====================
+   BUOY ROLLER SELECTOR
+   ===================== */
+.roller-wrapper {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  user-select: none;
+}
+
+.roller-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-card2);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--accent-blue);
+  text-transform: uppercase;
+}
+
+.roller-counter {
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+/* The highlight band */
+.roller-highlight {
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 68px;
+  background: rgba(0,180,216,0.07);
+  border-top: 1px solid rgba(0,180,216,0.25);
+  border-bottom: 1px solid rgba(0,180,216,0.25);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Fade masks top/bottom */
+.roller-fade-top, .roller-fade-bottom {
+  position: absolute;
+  left: 0; right: 0;
+  height: 60px;
+  pointer-events: none;
+  z-index: 3;
+}
+.roller-fade-top    { top: 36px;   background: linear-gradient(to bottom, var(--bg-card) 0%, transparent 100%); }
+.roller-fade-bottom { bottom: 0;   background: linear-gradient(to top,   var(--bg-card) 0%, transparent 100%); }
+
+.roller-viewport {
+  height: 240px;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  position: relative;
+  padding: 86px 0;  /* top+bottom padding = (240-68)/2 = 86 */
+}
+.roller-viewport::-webkit-scrollbar { display: none; }
+
+.roller-item {
+  height: 68px;
+  scroll-snap-align: center;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  border-bottom: 1px solid rgba(13,58,92,0.35);
+}
+
+.roller-item:last-child { border-bottom: none; }
+
+.roller-item-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 7px currentColor;
+}
+
+.roller-item-info { flex: 1; min-width: 0; }
+
+.roller-item-id {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent-teal);
+  font-weight: bold;
+  line-height: 1;
+}
+
+.roller-item-name {
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 3px;
+}
+
+.roller-item-vals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 8px;
+  margin-top: 4px;
+}
+
+.roller-item-val {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-primary);
+}
+.roller-item-val .lbl { font-size: 8px; color: var(--text-dim); }
+
+.roller-item-badge {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  padding: 2px 5px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+/* Arrow buttons */
+.roller-arrows {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-card2);
+}
+
+.roller-arrow {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 14px;
+  width: 32px; height: 26px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.roller-arrow:hover {
+  border-color: var(--accent-teal);
+  color: var(--accent-teal);
+  background: rgba(12,255,203,0.08);
+}
+
+.roller-selected-info {
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  background: var(--bg-card2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.roller-selected-info span { color: var(--accent-teal); font-size: 11px; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg width="36" height="36" viewBox="0 0 36 36">
+        <circle cx="18" cy="18" r="16" fill="none" stroke="#0cffcb" stroke-width="1.5" stroke-dasharray="4 2"/>
+        <circle cx="18" cy="18" r="8" fill="none" stroke="#00b4d8" stroke-width="1.5"/>
+        <circle cx="18" cy="18" r="3" fill="#0cffcb"/>
+        <line x1="18" y1="2" x2="18" y2="10" stroke="#0cffcb" stroke-width="1.5"/>
+        <line x1="18" y1="26" x2="18" y2="34" stroke="#0cffcb" stroke-width="1.5"/>
+        <line x1="2" y1="18" x2="10" y2="18" stroke="#0cffcb" stroke-width="1.5"/>
+        <line x1="26" y1="18" x2="34" y2="18" stroke="#0cffcb" stroke-width="1.5"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">YESSENOV</div>
+      <span class="logo-sub">CASPIAN SEA MONITORING SYSTEM v2.4</span>
+    </div>
+  </div>
+  
+  <div class="topbar-center">
+    <button class="nav-btn active" onclick="switchTab('dashboard')">Дашборд</button>
+    <button class="nav-btn" onclick="switchTab('history')">История</button>
+    <button class="nav-btn" onclick="switchTab('map')">Карта</button>
+    <button class="nav-btn" onclick="switchTab('settings')">Настройки</button>
+  </div>
+  
+  <div class="topbar-right">
+    <div class="connection-status">
+      <div class="status-dot" id="lora-dot"></div>
+      <span>LoRaWAN</span>
+    </div>
+    <div class="connection-status">
+      <div class="status-dot" id="server-dot"></div>
+      <span id="server-status-text">СЕРВЕР</span>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</div>
+
+<!-- MAIN GRID -->
+<div class="app-container">
+
+  <!-- SIDEBAR LEFT -->
+  <div class="sidebar-left">
+    <div class="section-title">Буи / Устройства</div>
+
+    <!-- ROLLER SELECTOR -->
+    <div class="roller-wrapper" id="buoy-roller">
+      <div class="roller-header">
+        <span>Выбор устройства</span>
+        <span class="roller-counter" id="roller-counter">1 / 16</span>
+      </div>
+
+      <div style="position:relative">
+        <div class="roller-highlight"></div>
+        <div class="roller-fade-top"></div>
+        <div class="roller-fade-bottom"></div>
+        <div class="roller-viewport" id="roller-viewport">
+          <!-- Items injected by JS -->
+        </div>
+      </div>
+
+      <div class="roller-arrows">
+        <button class="roller-arrow" onclick="rollerStep(-1)" title="Вверх">▲</button>
+        <div class="roller-selected-info">
+          Выбран: <span id="roller-selected-id">BY-01</span>
+        </div>
+        <button class="roller-arrow" onclick="rollerStep(1)" title="Вниз">▼</button>
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-top:4px">LoRaWAN Сеть</div>
+
+    <div class="lora-stats">
+      <div class="lora-stat-row">
+        <span class="lora-stat-label">Частота</span>
+        <span class="lora-stat-value" id="lora-freq">868.1 МГц</span>
+      </div>
+      <div class="lora-stat-row">
+        <span class="lora-stat-label">Spreading Factor</span>
+        <span class="lora-stat-value">SF10 BW125</span>
+      </div>
+      <div class="lora-stat-row">
+        <span class="lora-stat-label">RSSI (avg)</span>
+        <span class="lora-stat-value" id="lora-rssi">-87 дБм</span>
+      </div>
+      <div class="lora-stat-row">
+        <span class="lora-stat-label">SNR</span>
+        <span class="lora-stat-value" id="lora-snr">+4.2 дБ</span>
+      </div>
+      <div class="lora-stat-row">
+        <span class="lora-stat-label">Пакетов/час</span>
+        <span class="lora-stat-value" id="lora-pph">48</span>
+      </div>
+      <div class="lora-stat-row">
+        <span class="lora-stat-label">Потеря пакетов</span>
+        <span class="lora-stat-value" id="lora-loss">2.1%</span>
+      </div>
+      <div class="lora-stat-row">
+        <span class="lora-stat-label">Шлюз</span>
+        <span class="lora-stat-value" style="color:var(--accent-green)">BS-AKTAU</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-content">
+
+    <!-- DASHBOARD TAB -->
+    <div class="tab-view active" id="tab-dashboard">
+      
+      <!-- SENSOR CARDS -->
+      <div class="sensor-grid">
+        <!-- pH -->
+        <div class="sensor-card status-good" id="card-ph" style="--card-accent: var(--accent-teal)">
+          <div class="corner-dec corner-tl"></div>
+          <div class="corner-dec corner-br"></div>
+          <div class="sensor-icon-label">
+            <span class="sensor-emoji">🧪</span>
+            <span class="sensor-label">Кислотность pH</span>
+          </div>
+          <div class="sensor-value-big" id="val-ph">8.12 <span>pH</span></div>
+          <div class="sensor-range-bar"><div class="sensor-range-fill" id="bar-ph" style="width:66%"></div></div>
+          <div class="sensor-trend" id="trend-ph">
+            <span class="trend-stable">→</span> Норма: 7.8 – 8.5
+          </div>
+        </div>
+
+        <!-- Температура -->
+        <div class="sensor-card" id="card-temp" style="--card-accent: var(--accent-orange)">
+          <div class="corner-dec corner-tl"></div>
+          <div class="corner-dec corner-br"></div>
+          <div class="sensor-icon-label">
+            <span class="sensor-emoji">🌡️</span>
+            <span class="sensor-label">Температура</span>
+          </div>
+          <div class="sensor-value-big" id="val-temp">14.3 <span>°C</span></div>
+          <div class="sensor-range-bar"><div class="sensor-range-fill" id="bar-temp" style="width:40%"></div></div>
+          <div class="sensor-trend" id="trend-temp">
+            <span class="trend-up">↑ +0.3°</span> за последний час
+          </div>
+        </div>
+
+        <!-- Растворённый кислород -->
+        <div class="sensor-card status-good" id="card-do" style="--card-accent: var(--accent-blue)">
+          <div class="corner-dec corner-tl"></div>
+          <div class="corner-dec corner-br"></div>
+          <div class="sensor-icon-label">
+            <span class="sensor-emoji">💧</span>
+            <span class="sensor-label">Раств. O₂ (DO)</span>
+          </div>
+          <div class="sensor-value-big" id="val-do">7.8 <span>мг/л</span></div>
+          <div class="sensor-range-bar"><div class="sensor-range-fill" id="bar-do" style="width:73%"></div></div>
+          <div class="sensor-trend" id="trend-do">
+            <span class="trend-stable">→</span> Норма: ≥6.0 мг/л
+          </div>
+        </div>
+
+        <!-- Мутность -->
+        <div class="sensor-card" id="card-turb" style="--card-accent: var(--accent-yellow)">
+          <div class="corner-dec corner-tl"></div>
+          <div class="corner-dec corner-br"></div>
+          <div class="sensor-icon-label">
+            <span class="sensor-emoji">🌊</span>
+            <span class="sensor-label">Мутность</span>
+          </div>
+          <div class="sensor-value-big" id="val-turb">12.4 <span>NTU</span></div>
+          <div class="sensor-range-bar"><div class="sensor-range-fill" id="bar-turb" style="width:24%"></div></div>
+          <div class="sensor-trend" id="trend-turb">
+            <span class="trend-down">↓ -2.1</span> улучшение
+          </div>
+        </div>
+
+        <!-- EC / TDS -->
+        <div class="sensor-card" id="card-ec" style="--card-accent: var(--accent-blue)">
+          <div class="corner-dec corner-tl"></div>
+          <div class="corner-dec corner-br"></div>
+          <div class="sensor-icon-label">
+            <span class="sensor-emoji">⚡</span>
+            <span class="sensor-label">Электропровод. EC</span>
+          </div>
+          <div class="sensor-value-big" id="val-ec">24.6 <span>мСм/см</span></div>
+          <div class="sensor-range-bar"><div class="sensor-range-fill" id="bar-ec" style="width:58%"></div></div>
+          <div class="sensor-trend" id="trend-ec">
+            <span class="trend-stable">→</span> Соленость ~12.8 г/л
+          </div>
+        </div>
+
+        <!-- TDS -->
+        <div class="sensor-card" id="card-tds" style="--card-accent: var(--accent-teal)">
+          <div class="corner-dec corner-tl"></div>
+          <div class="corner-dec corner-br"></div>
+          <div class="sensor-icon-label">
+            <span class="sensor-emoji">🧂</span>
+            <span class="sensor-label">Солёность TDS</span>
+          </div>
+          <div class="sensor-value-big" id="val-tds">12843 <span>мг/л</span></div>
+          <div class="sensor-range-bar"><div class="sensor-range-fill" id="bar-tds" style="width:52%"></div></div>
+          <div class="sensor-trend" id="trend-tds">
+            <span class="trend-stable">→</span> Каспийская норма
+          </div>
+        </div>
+
+        <!-- ORP -->
+        <div class="sensor-card" id="card-orp" style="--card-accent: var(--accent-green)">
+          <div class="corner-dec corner-tl"></div>
+          <div class="corner-dec corner-br"></div>
+          <div class="sensor-icon-label">
+            <span class="sensor-emoji">⚗️</span>
+            <span class="sensor-label">ОВП (ORP)</span>
+          </div>
+          <div class="sensor-value-big" id="val-orp">+286 <span>мВ</span></div>
+          <div class="sensor-range-bar"><div class="sensor-range-fill" id="bar-orp" style="width:64%"></div></div>
+          <div class="sensor-trend" id="trend-orp">
+            <span class="trend-stable">→</span> Окислит. среда ✓
+          </div>
+        </div>
+
+        <!-- Углеводороды -->
+        <div class="sensor-card status-good" id="card-hc" style="--card-accent: var(--accent-green)">
+          <div class="corner-dec corner-tl"></div>
+          <div class="corner-dec corner-br"></div>
+          <div class="sensor-icon-label">
+            <span class="sensor-emoji">🛢️</span>
+            <span class="sensor-label">Углеводороды ΣHC</span>
+          </div>
+          <div class="sensor-value-big" id="val-hc">0.04 <span>мг/л</span></div>
+          <div class="sensor-range-bar"><div class="sensor-range-fill" id="bar-hc" style="width:8%"></div></div>
+          <div class="sensor-trend" id="trend-hc">
+            <span class="trend-stable">→</span> ПДК: 0.05 мг/л
+          </div>
+        </div>
+      </div>
+
+      <!-- CHARTS ROW 1 -->
+      <div class="chart-row">
+        <div class="chart-panel">
+          <div class="chart-panel-header">
+            <span class="chart-title">pH + DO — Динамика</span>
+            <div class="chart-controls">
+              <button class="time-btn active">1ч</button>
+              <button class="time-btn">6ч</button>
+              <button class="time-btn">24ч</button>
+            </div>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="chart-ph-do"></canvas>
+          </div>
+        </div>
+        
+        <div class="chart-panel">
+          <div class="chart-panel-header">
+            <span class="chart-title">Температура + EC</span>
+            <div class="chart-controls">
+              <button class="time-btn active">1ч</button>
+              <button class="time-btn">6ч</button>
+              <button class="time-btn">24ч</button>
+            </div>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="chart-temp-ec"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- CHART ROW 2 -->
+      <div class="chart-row">
+        <div class="chart-panel">
+          <div class="chart-panel-header">
+            <span class="chart-title">Нефтяные углеводороды ΣHC</span>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="chart-hc"></canvas>
+          </div>
+        </div>
+        
+        <div class="chart-panel">
+          <div class="chart-panel-header">
+            <span class="chart-title">Мутность (NTU)</span>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="chart-turb"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- HISTORY TAB -->
+    <div class="tab-view" id="tab-history">
+      <div class="history-panel">
+        <div class="chart-panel-header">
+          <span class="chart-title">Исторические данные — BUOY-01</span>
+          <div class="chart-controls">
+            <button class="time-btn">1д</button>
+            <button class="time-btn active">7д</button>
+            <button class="time-btn">30д</button>
+            <button class="time-btn">90д</button>
+          </div>
+        </div>
+        <div class="history-chart-wrap">
+          <canvas id="chart-history-ph"></canvas>
+        </div>
+      </div>
+      <div class="chart-row">
+        <div class="history-panel">
+          <div class="chart-panel-header"><span class="chart-title">DO — 7 дней</span></div>
+          <div class="history-chart-wrap"><canvas id="chart-history-do"></canvas></div>
+        </div>
+        <div class="history-panel">
+          <div class="chart-panel-header"><span class="chart-title">Углеводороды — 7 дней</span></div>
+          <div class="history-chart-wrap"><canvas id="chart-history-hc"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAP TAB -->
+    <div class="tab-view" id="tab-map">
+      <div class="map-panel">
+        <div class="map-header">
+          <span class="chart-title">Карта буёв — Казахстанский сектор Каспия</span>
+          <div style="display:flex;gap:12px;align-items:center;font-family:var(--font-mono);font-size:10px">
+            <span style="color:var(--accent-green)">● Онлайн (12)</span>
+            <span style="color:var(--accent-yellow)">● Внимание (1)</span>
+            <span style="color:var(--accent-orange)">● Тревога (2)</span>
+            <span style="color:var(--accent-red)">● Оффлайн (2)</span>
+            <span style="color:var(--accent-blue)">📡 Станции (3)</span>
+          </div>
+        </div>
+        <div id="caspian-map"></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS TAB -->
+    <div class="tab-view" id="tab-settings">
+      <div class="settings-grid">
+        <div class="settings-card">
+          <h3>LoRaWAN Сервер</h3>
+          <div class="form-group">
+            <label class="form-label">Адрес сервера (MQTT Broker)</label>
+            <input type="text" class="form-input" value="mqtt://192.168.1.100:1883" id="mqtt-host">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Логин</label>
+              <input type="text" class="form-input" value="caspian_admin" id="mqtt-user">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Пароль</label>
+              <input type="password" class="form-input" value="••••••••" id="mqtt-pass">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Topic шаблон</label>
+            <input type="text" class="form-input" value="v3/+/devices/+/up" id="mqtt-topic">
+          </div>
+          <div class="form-group">
+            <label class="form-label">AppEUI (JoinEUI)</label>
+            <input type="text" class="form-input" placeholder="70B3D57ED0000000" id="app-eui" style="font-family:var(--font-mono)">
+          </div>
+          <button class="btn-primary" onclick="testConnection()">Тест соединения</button>
+        </div>
+        
+        <div class="settings-card">
+          <h3>Декодер пакетов</h3>
+          <div class="form-group">
+            <label class="form-label">Формат payload (байты)</label>
+            <select class="form-input" id="payload-fmt">
+              <option>Cayenne LPP</option>
+              <option selected>Custom Binary (12 байт)</option>
+              <option>JSON</option>
+            </select>
+          </div>
+          <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:3px;padding:12px;margin-bottom:12px">
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--accent-teal);margin-bottom:8px">Структура пакета (12 байт):</div>
+            <div style="font-family:var(--font-mono);font-size:10px;line-height:1.8;color:var(--text-secondary)">
+              [0-1] : pH × 100 (uint16)<br>
+              [2-3] : Temp × 10 (int16)<br>
+              [4-5] : DO × 100 (uint16)<br>
+              [6-7] : Turbidity (uint16)<br>
+              [8-9] : EC × 10 (uint16)<br>
+              [10-11]: HC × 1000 (uint16)
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Тест декодера (HEX)</label>
+            <input type="text" class="form-input" id="test-hex" placeholder="0C1A 008F 1E6A 0050 0061 0028">
+          </div>
+          <button class="btn-primary" onclick="decodePacket()">Декодировать</button>
+          <div id="decode-result" style="margin-top:10px;font-family:var(--font-mono);font-size:11px;color:var(--accent-teal);line-height:1.6"></div>
+        </div>
+
+        <div class="settings-card" style="grid-column: 1 / -1">
+          <h3>Пороговые значения (Алерты)</h3>
+          <table class="threshold-table">
+            <thead>
+              <tr>
+                <th>Параметр</th>
+                <th>Единица</th>
+                <th>Мин. норма</th>
+                <th>Макс. норма</th>
+                <th>Критический мин.</th>
+                <th>Критический макс.</th>
+                <th>Действие</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>🧪 pH</td><td style="color:var(--text-dim)">pH</td>
+                <td><input type="number" class="threshold-input" value="7.8"></td>
+                <td><input type="number" class="threshold-input" value="8.5"></td>
+                <td><input type="number" class="threshold-input" value="7.0"></td>
+                <td><input type="number" class="threshold-input" value="9.0"></td>
+                <td><span style="font-size:10px;color:var(--accent-teal)">Email + SMS</span></td>
+              </tr>
+              <tr>
+                <td>💧 DO</td><td style="color:var(--text-dim)">мг/л</td>
+                <td><input type="number" class="threshold-input" value="6.0"></td>
+                <td><input type="number" class="threshold-input" value="12.0"></td>
+                <td><input type="number" class="threshold-input" value="4.0"></td>
+                <td><input type="number" class="threshold-input" value="—" disabled></td>
+                <td><span style="font-size:10px;color:var(--accent-orange)">Критический алерт</span></td>
+              </tr>
+              <tr>
+                <td>🛢️ ΣHC</td><td style="color:var(--text-dim)">мг/л</td>
+                <td><input type="number" class="threshold-input" value="0.00"></td>
+                <td><input type="number" class="threshold-input" value="0.05"></td>
+                <td><input type="number" class="threshold-input" value="—" disabled></td>
+                <td><input type="number" class="threshold-input" value="0.10"></td>
+                <td><span style="font-size:10px;color:var(--accent-red)">🚨 Разлив нефти!</span></td>
+              </tr>
+              <tr>
+                <td>🌊 Мутность</td><td style="color:var(--text-dim)">NTU</td>
+                <td><input type="number" class="threshold-input" value="0.0"></td>
+                <td><input type="number" class="threshold-input" value="50.0"></td>
+                <td><input type="number" class="threshold-input" value="—" disabled></td>
+                <td><input type="number" class="threshold-input" value="100"></td>
+                <td><span style="font-size:10px;color:var(--accent-teal)">Email</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="margin-top:12px"><button class="btn-primary">Сохранить пороги</button></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- SIDEBAR RIGHT -->
+  <div class="sidebar-right">
+    
+    <div class="section-title">Статистика системы</div>
+    
+    <div class="stats-grid">
+      <div class="stat-box">
+        <span class="stat-num" id="stat-packets">0</span>
+        <span class="stat-desc">Пакетов получено</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-num" style="color:var(--accent-orange)" id="stat-alerts">3</span>
+        <span class="stat-desc">Активных алертов</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-num" style="color:var(--accent-green)" id="stat-buoys">13/16</span>
+        <span class="stat-desc">Буёв онлайн</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-num" style="color:var(--accent-yellow)" id="stat-uptime">99.2%</span>
+        <span class="stat-desc">Аптайм</span>
+      </div>
+    </div>
+
+    <div class="section-title">Активные тревоги</div>
+    
+    <div id="alert-list">
+      <div class="alert-item critical">
+        <div class="alert-type">🚨 Критический</div>
+        <div class="alert-msg">BUOY-02: DO упал до 4.2 мг/л (норма ≥6.0). Возможна гипоксия!</div>
+        <div class="alert-time">14:32:17</div>
+      </div>
+      
+      <div class="alert-item">
+        <div class="alert-type">⚠️ Предупреждение</div>
+        <div class="alert-msg">BUOY-02: Углеводороды 0.38 мг/л — превышение ПДК в 7.6 раз!</div>
+        <div class="alert-time">14:31:05</div>
+      </div>
+      
+      <div class="alert-item">
+        <div class="alert-type">⚠️ Предупреждение</div>
+        <div class="alert-msg">BUOY-02: pH снизился до 7.62. Закисление среды.</div>
+        <div class="alert-time">14:29:44</div>
+      </div>
+      
+      <div class="alert-item info">
+        <div class="alert-type">ℹ️ Инфо</div>
+        <div class="alert-msg">BUOY-04 не отвечает более 45 минут.</div>
+        <div class="alert-time">13:47:22</div>
+      </div>
+
+      <div class="alert-item resolved">
+        <div class="alert-type">✅ Устранено</div>
+        <div class="alert-msg">BUOY-01: Мутность нормализовалась (было 48 NTU).</div>
+        <div class="alert-time">12:14:08</div>
+      </div>
+    </div>
+
+    <div class="section-title">Входящие LoRa пакеты</div>
+    
+    <div class="packet-decoder">
+      <div class="decoder-header">
+        <span>Декодер пакетов</span>
+        <div class="decoder-live">
+          <div class="status-dot" style="width:6px;height:6px"></div>
+          LIVE
+        </div>
+      </div>
+      <div class="packet-list" id="packet-list">
+        <!-- Packets injected by JS -->
+      </div>
+    </div>
+
+  </div>
+
+  <!-- STATUS BAR -->
+  <div class="statusbar">
+    <span>Yessenov CSM v2.4</span>
+    <span style="color:var(--text-dim)">|</span>
+    Буёв активных: <span id="sb-buoys">13 из 16</span>
+    <span style="color:var(--text-dim)">|</span>
+    Шлюз: <span>BS-AKTAU · BS-MANGYS · BS-KASHAT</span>
+    <span style="color:var(--text-dim)">|</span>
+    Выбранный буй: <span id="sb-buoy">BUOY-01</span>
+    <span style="color:var(--text-dim)">|</span>
+    Последний пакет: <span id="sb-last-packet">--:--:--</span>
+    <span style="color:var(--text-dim)">|</span>
+    Активных алертов: <span id="sb-alerts" style="color:var(--accent-orange)">3</span>
+  </div>
+
+</div>
+
+<script>
+// ===============================================
+// DATA SIMULATION ENGINE
+// ===============================================
+
+// ===============================================
+// DATA — 16 BUOYS (ALL IN THE SEA)
+// Kazakhstan is on the EAST shore of Caspian.
+// Sea is to the WEST → lng < 51.1°E for lat 43-44°N
+// Northern Caspian (lat 45+) extends EAST to ~53°E (Kashagan zone)
+// ===============================================
+
+const BUOYS = [
+  { id:'BY-01', name:'Актау — офшор юг',        lat:43.68, lng:50.75, status:'online',  pH:8.12, temp:14.3, DO:7.8,  turb:12.4, ec:24.6,  tds:12843, orp:286,  hc:0.04 },
+  { id:'BY-02', name:'Платформа CK-2',           lat:44.05, lng:50.42, status:'alert',   pH:7.62, temp:13.8, DO:4.2,  turb:28.6, ec:24.1,  tds:12540, orp:198,  hc:0.38 },
+  { id:'BY-03', name:'Офшор Мангыстау',          lat:44.42, lng:50.08, status:'online',  pH:8.24, temp:12.9, DO:8.6,  turb:6.2,  ec:25.1,  tds:13045, orp:312,  hc:0.02 },
+  { id:'BY-04', name:'Кашаган — зона А',         lat:45.22, lng:52.18, status:'offline', pH:null, temp:null, DO:null, turb:null, ec:null,  tds:null,  orp:null, hc:null  },
+  { id:'BY-05', name:'Актау — офшор север',      lat:44.00, lng:50.60, status:'online',  pH:8.18, temp:13.1, DO:8.1,  turb:9.5,  ec:24.8,  tds:12900, orp:299,  hc:0.01 },
+  { id:'BY-06', name:'Глубоководный рубеж',      lat:43.82, lng:50.28, status:'online',  pH:8.09, temp:14.7, DO:7.4,  turb:7.8,  ec:24.4,  tds:12700, orp:278,  hc:0.03 },
+  { id:'BY-07', name:'Каламкас — акватория',     lat:45.48, lng:52.62, status:'alert',   pH:7.71, temp:11.8, DO:5.1,  turb:31.2, ec:23.9,  tds:12420, orp:205,  hc:0.12 },
+  { id:'BY-08', name:'Южный Каспий KZ',          lat:43.25, lng:50.52, status:'online',  pH:8.21, temp:15.2, DO:8.9,  turb:5.4,  ec:25.3,  tds:13150, orp:320,  hc:0.01 },
+  { id:'BY-09', name:'Западный шельф',           lat:43.90, lng:49.82, status:'online',  pH:8.15, temp:14.0, DO:7.6,  turb:8.2,  ec:24.9,  tds:12960, orp:291,  hc:0.03 },
+  { id:'BY-10', name:'Центральная банка',        lat:44.30, lng:50.65, status:'online',  pH:8.07, temp:13.6, DO:7.2,  turb:11.0, ec:24.5,  tds:12750, orp:275,  hc:0.04 },
+  { id:'BY-11', name:'Промысловый р-н №3',       lat:44.75, lng:51.10, status:'warning', pH:7.89, temp:12.2, DO:6.1,  turb:18.5, ec:24.2,  tds:12580, orp:242,  hc:0.07 },
+  { id:'BY-12', name:'Жетыбай — акватория',      lat:43.52, lng:50.88, status:'online',  pH:8.22, temp:14.8, DO:8.3,  turb:7.0,  ec:25.0,  tds:13010, orp:308,  hc:0.02 },
+  { id:'BY-13', name:'Северный сектор KZ',       lat:45.32, lng:51.55, status:'online',  pH:8.11, temp:11.4, DO:7.9,  turb:9.8,  ec:24.7,  tds:12840, orp:284,  hc:0.03 },
+  { id:'BY-14', name:'Дальний офшор',            lat:43.78, lng:49.52, status:'online',  pH:8.19, temp:15.5, DO:8.5,  turb:4.8,  ec:25.2,  tds:13090, orp:315,  hc:0.01 },
+  { id:'BY-15', name:'Шельф Дунга',              lat:45.05, lng:51.78, status:'online',  pH:8.28, temp:11.9, DO:9.1,  turb:5.2,  ec:25.4,  tds:13200, orp:328,  hc:0.01 },
+  { id:'BY-16', name:'Северная банка Кашаган',   lat:45.72, lng:52.90, status:'offline', pH:null, temp:null, DO:null, turb:null, ec:null,  tds:null,  orp:null, hc:null  },
+];
+
+// ===============================================
+// ROLLER SELECTOR
+// ===============================================
+let selectedBuoy = 0;
+let rollerScrolling = false;
+let packetCount = 0;
+
+const STATUS_COLORS = { online:'#06d6a0', alert:'#ff6b35', warning:'#ffd60a', offline:'#ff2d55' };
+const STATUS_LABELS = { online:'ОНЛАЙН', alert:'ТРЕВОГА', warning:'ВНИМАНИЕ', offline:'ОФФЛАЙН' };
+const STATUS_BADGE_CLASSES = { online:'badge-online', alert:'badge-alert', warning:'badge-alert', offline:'badge-offline' };
+
+function buildRoller() {
+  const vp = document.getElementById('roller-viewport');
+  if (!vp) return;
+  vp.innerHTML = '';
+
+  BUOYS.forEach((b, i) => {
+    const col = STATUS_COLORS[b.status] || '#aaa';
+    const lbl = STATUS_LABELS[b.status] || '';
+    const badgeStyle = b.status === 'online'
+      ? 'background:rgba(6,214,160,0.15);color:#06d6a0;border:1px solid rgba(6,214,160,0.3)'
+      : b.status === 'alert'
+      ? 'background:rgba(255,107,53,0.15);color:#ff6b35;border:1px solid rgba(255,107,53,0.3)'
+      : b.status === 'warning'
+      ? 'background:rgba(255,214,10,0.12);color:#ffd60a;border:1px solid rgba(255,214,10,0.3)'
+      : 'background:rgba(255,45,85,0.1);color:#ff2d55;border:1px solid rgba(255,45,85,0.2)';
+
+    const phVal   = b.pH   !== null ? b.pH.toFixed(2)   : '—';
+    const doVal   = b.DO   !== null ? b.DO.toFixed(1)   : '—';
+    const hcVal   = b.hc   !== null ? b.hc.toFixed(3)   : '—';
+    const tmpVal  = b.temp !== null ? b.temp.toFixed(1) : '—';
+
+    const item = document.createElement('div');
+    item.className = 'roller-item';
+    item.id = `roller-item-${i}`;
+    item.innerHTML = `
+      <div class="roller-item-dot" style="background:${col};color:${col}"></div>
+      <div class="roller-item-info">
+        <div class="roller-item-id">${b.id}</div>
+        <div class="roller-item-name">${b.name}</div>
+        <div class="roller-item-vals">
+          <div class="roller-item-val"><span class="lbl">pH </span><span id="ri${i}-ph">${phVal}</span></div>
+          <div class="roller-item-val"><span class="lbl">T° </span><span id="ri${i}-t">${tmpVal}</span></div>
+          <div class="roller-item-val"><span class="lbl">DO </span><span id="ri${i}-do">${doVal}</span></div>
+          <div class="roller-item-val"><span class="lbl">HC </span><span id="ri${i}-hc">${hcVal}</span></div>
+        </div>
+      </div>
+      <div class="roller-item-badge" style="${badgeStyle}">${lbl}</div>`;
+    item.addEventListener('click', () => rollerSelectByIndex(i));
+    vp.appendChild(item);
+  });
+
+  // Scroll snap listener
+  vp.addEventListener('scroll', onRollerScroll);
+  // Init scroll to item 0
+  setTimeout(() => rollerScrollTo(0, false), 50);
+}
+
+function onRollerScroll() {
+  if (rollerScrolling) return;
+  const vp = document.getElementById('roller-viewport');
+  const itemH = 68;
+  const idx = Math.round(vp.scrollTop / itemH);
+  const clamped = Math.max(0, Math.min(BUOYS.length - 1, idx));
+  if (clamped !== selectedBuoy) {
+    selectedBuoy = clamped;
+    onBuoyChanged();
+  }
+}
+
+function rollerScrollTo(idx, smooth = true) {
+  const vp = document.getElementById('roller-viewport');
+  if (!vp) return;
+  rollerScrolling = true;
+  vp.scrollTo({ top: idx * 68, behavior: smooth ? 'smooth' : 'instant' });
+  setTimeout(() => { rollerScrolling = false; }, 400);
+}
+
+function rollerSelectByIndex(idx) {
+  selectedBuoy = idx;
+  rollerScrollTo(idx);
+  onBuoyChanged();
+}
+
+function rollerStep(delta) {
+  const next = Math.max(0, Math.min(BUOYS.length - 1, selectedBuoy + delta));
+  rollerSelectByIndex(next);
+}
+
+function onBuoyChanged() {
+  const b = BUOYS[selectedBuoy];
+  // Update counter
+  const counter = document.getElementById('roller-counter');
+  if (counter) counter.textContent = `${selectedBuoy + 1} / ${BUOYS.length}`;
+  // Update selected label
+  const selId = document.getElementById('roller-selected-id');
+  if (selId) selId.textContent = b.id;
+  // Update status bar
+  const sbBuoy = document.getElementById('sb-buoy');
+  if (sbBuoy) sbBuoy.textContent = b.id;
+  // Update main sensor cards
+  updateSensorCards(b);
+  // *** Reload charts with this buoy's own history ***
+  reloadChartsForBuoy(selectedBuoy);
+  // Update chart panel titles to show current buoy
+  document.querySelectorAll('.chart-title').forEach(el => {
+    el.dataset.base = el.dataset.base || el.textContent;
+  });
+}
+
+// Legacy alias kept for compatibility
+function selectBuoy(idx) { rollerSelectByIndex(idx); }
+
+// ===============================================
+// PER-BUOY CHART HISTORY
+// Each buoy gets its own 60-point history array
+// ===============================================
+const buoyHistory = BUOYS.map(b => {
+  const hist = { labels: [], ph: [], do_: [], temp: [], ec: [], hc: [], turb: [] };
+  const now = Date.now();
+  for (let i = 59; i >= 0; i--) {
+    const t = new Date(now - i * 60000);
+    hist.labels.push(t.getHours().toString().padStart(2,'0') + ':' + t.getMinutes().toString().padStart(2,'0'));
+    if (b.status !== 'offline') {
+      // Generate unique history per buoy using its initial values + noise
+      const spread = (base, range) => base !== null ? +(base + (Math.random()-0.5)*range*2).toFixed(3) : null;
+      hist.ph.push(spread(b.pH, 0.25));
+      hist.do_.push(spread(b.DO, 1.2));
+      hist.temp.push(spread(b.temp, 0.8));
+      hist.ec.push(spread(b.ec, 0.5));
+      hist.hc.push(Math.max(0, spread(b.hc, b.hc * 0.4)));
+      hist.turb.push(Math.max(0, spread(b.turb, b.turb * 0.35)));
+    } else {
+      hist.ph.push(null); hist.do_.push(null); hist.temp.push(null);
+      hist.ec.push(null); hist.hc.push(null); hist.turb.push(null);
+    }
+  }
+  return hist;
+});
+
+// Active view window (last 30 points)
+function getBuoyChartSlice(idx, key) {
+  return buoyHistory[idx][key].slice(-30);
+}
+function getBuoyLabels(idx) {
+  return buoyHistory[idx].labels.slice(-30);
+}
+
+// ===============================================
+// CHARTS
+// ===============================================
+Chart.defaults.color = '#7ab3cc';
+Chart.defaults.borderColor = 'rgba(13,58,92,0.5)';
+Chart.defaults.font.family = "'Share Tech Mono', monospace";
+Chart.defaults.font.size = 10;
+
+const chartBaseOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: { duration: 300 },
+  plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 8, padding: 10, color: '#7ab3cc' } } },
+  scales: {
+    x: { grid: { color: 'rgba(13,58,92,0.4)' }, ticks: { maxTicksLimit: 8 } },
+    y: { grid: { color: 'rgba(13,58,92,0.4)' } }
+  },
+  elements: { point: { radius: 0, hoverRadius: 4 }, line: { tension: 0.3 } }
+};
+
+const charts = {};
+
+function initCharts() {
+  const mk = (id, datasets) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    charts[id] = new Chart(el.getContext('2d'), {
+      type: 'line',
+      data: { labels: getBuoyLabels(0), datasets },
+      options: JSON.parse(JSON.stringify(chartBaseOptions))
+    });
+  };
+
+  // Use buoy 0 as initial data
+  mk('chart-ph-do', [
+    { label: 'pH',        data: getBuoyChartSlice(0,'ph'),   borderColor:'#0cffcb', backgroundColor:'rgba(12,255,203,0.08)', borderWidth:2 },
+    { label: 'DO (мг/л)', data: getBuoyChartSlice(0,'do_'),  borderColor:'#00b4d8', backgroundColor:'rgba(0,180,216,0.06)',  borderWidth:2 }
+  ]);
+  mk('chart-temp-ec', [
+    { label: 'T°C',         data: getBuoyChartSlice(0,'temp'), borderColor:'#ff6b35', backgroundColor:'rgba(255,107,53,0.08)', borderWidth:2 },
+    { label: 'EC (мСм/см)', data: getBuoyChartSlice(0,'ec'),   borderColor:'#ffd60a', backgroundColor:'rgba(255,214,10,0.05)', borderWidth:2 }
+  ]);
+  mk('chart-hc', [
+    { label: 'ΣHC мг/л', data: getBuoyChartSlice(0,'hc'),   borderColor:'#06d6a0', backgroundColor:'rgba(6,214,160,0.1)',   fill:true, borderWidth:2 }
+  ]);
+  mk('chart-turb', [
+    { label: 'NTU', data: getBuoyChartSlice(0,'turb'), borderColor:'#ffd60a', backgroundColor:'rgba(255,214,10,0.08)', fill:true, borderWidth:2 }
+  ]);
+
+  // History charts (static 7-day)
+  mk('chart-history-ph', [
+    { label:'pH', data: Array.from({length:168},()=>+(7.8+Math.random()*0.5).toFixed(2)), borderColor:'#0cffcb', backgroundColor:'rgba(12,255,203,0.06)', borderWidth:1.5 }
+  ]);
+  mk('chart-history-do', [
+    { label:'DO (мг/л)', data: Array.from({length:168},()=>+(5.5+Math.random()*3.5).toFixed(2)), borderColor:'#00b4d8', backgroundColor:'rgba(0,180,216,0.06)', borderWidth:1.5, fill:true }
+  ]);
+  mk('chart-history-hc', [
+    { label:'ΣHC (мг/л)', data: Array.from({length:168},()=>+(Math.random()*0.06).toFixed(3)), borderColor:'#ff6b35', backgroundColor:'rgba(255,107,53,0.1)', borderWidth:1.5, fill:true }
+  ]);
+}
+
+// Reload dashboard charts for a specific buoy
+function reloadChartsForBuoy(idx) {
+  const b = BUOYS[idx];
+  const label = b.id + ' — ' + b.name;
+
+  const setChart = (id, ds0key, ds1key) => {
+    const c = charts[id];
+    if (!c) return;
+    c.data.labels = getBuoyLabels(idx);
+    c.data.datasets[0].data = getBuoyChartSlice(idx, ds0key);
+    if (ds1key) c.data.datasets[1].data = getBuoyChartSlice(idx, ds1key);
+    c.update('none');
+  };
+
+  setChart('chart-ph-do',   'ph',   'do_');
+  setChart('chart-temp-ec', 'temp', 'ec');
+  setChart('chart-hc',      'hc',   null);
+  setChart('chart-turb',    'turb', null);
+}
+
+// ===============================================
+// MAP — 16 BUOYS + 3 BASE STATIONS
+// ===============================================
+function initMap() {
+  const map = L.map('caspian-map', { center: [44.2, 50.8], zoom: 7 });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  // ---- 16 Buoys — use the shared BUOYS array ----
+  const allBuoys = BUOYS;
+
+  // ---- 3 Base Stations (on coast, land) ----
+  const baseStations = [
+    { id:'BS-AKTAU',  name:'Актау — Главная станция',        lat:43.652, lng:51.172, coverage:50, buoysConnected:7 },
+    { id:'BS-FTSHEV', name:'Форт-Шевченко — Базовая',        lat:44.510, lng:50.270, coverage:48, buoysConnected:5 },
+    { id:'BS-TYBKAR', name:'Тюб-Кароган — Ретранслятор',     lat:44.698, lng:50.895, coverage:52, buoysConnected:4 },
+  ];
+
+  // Status colors
+  const statusColors = { online:'#06d6a0', alert:'#ff6b35', warning:'#ffd60a', offline:'#ff2d55' };
+
+  // Draw coverage circles for base stations first
+  baseStations.forEach(bs => {
+    L.circle([bs.lat, bs.lng], {
+      radius: bs.coverage * 1000,
+      color: '#00b4d8',
+      fillColor: '#00b4d8',
+      fillOpacity: 0.04,
+      weight: 1,
+      dashArray: '6 4'
+    }).addTo(map);
+  });
+
+  // Draw buoy markers
+  allBuoys.forEach(b => {
+    const col = statusColors[b.status] || '#aaa';
+    const html = b.status === 'offline'
+      ? `<div style="width:12px;height:12px;background:${col};border:2px solid #1a0a12;border-radius:50%;opacity:0.55"></div>`
+      : `<div style="width:13px;height:13px;background:${col};border:2px solid #071f36;border-radius:50%;box-shadow:0 0 9px ${col};transition:transform 0.2s"></div>`;
+    const icon = L.divIcon({ className:'', html, iconSize:[13,13], iconAnchor:[6,6] });
+    const m = L.marker([b.lat, b.lng], { icon }).addTo(map);
+
+    const phStr   = b.pH   !== null ? b.pH.toFixed(2)   : '—';
+    const doStr   = b.DO   !== null ? b.DO.toFixed(1)   : '—';
+    const hcStr   = b.hc   !== null ? b.hc.toFixed(3)   : '—';
+    const tmpStr  = b.temp !== null ? b.temp.toFixed(1) : '—';
+    const hcColor = b.hc !== null && b.hc > 0.05 ? '#ff6b35' : '#06d6a0';
+    const stLabel = { online:'✅ ОНЛАЙН', alert:'🚨 ТРЕВОГА', warning:'⚠️ ВНИМАНИЕ', offline:'❌ ОФФЛАЙН' }[b.status];
+    m.bindPopup(`
+      <div style="font-family:'Share Tech Mono',monospace;font-size:11px;min-width:190px;background:#071f36;color:#e0f4ff;padding:12px;border-radius:4px;border:1px solid #0d3a5c">
+        <b style="color:#0cffcb;font-size:13px">${b.id}</b><br>
+        <span style="color:#7ab3cc;font-size:10px">${b.name}</span><br>
+        <span style="font-size:10px">${stLabel}</span>
+        <hr style="border-color:#0d3a5c;margin:6px 0">
+        pH: <b style="color:#0cffcb">${phStr}</b><br>
+        DO: <b style="color:#00b4d8">${doStr} мг/л</b><br>
+        T°: <b style="color:#ff6b35">${tmpStr}°C</b><br>
+        ΣHC: <b style="color:${hcColor}">${hcStr} мг/л</b><br>
+        <span style="color:#3a6a88;font-size:9px;margin-top:4px;display:block">
+          ${b.lat.toFixed(4)}°N ${b.lng.toFixed(4)}°E
+        </span>
+      </div>
+    `);
+  });
+
+  // Draw base station markers
+  baseStations.forEach(bs => {
+    const html = `
+      <div style="position:relative;width:28px;height:28px">
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+             width:28px;height:28px;border-radius:50%;background:rgba(0,180,216,0.15);
+             border:2px solid #00b4d8;box-shadow:0 0 14px #00b4d8;
+             display:flex;align-items:center;justify-content:center;font-size:14px">📡</div>
+      </div>`;
+    const icon = L.divIcon({ className:'', html, iconSize:[28,28], iconAnchor:[14,14] });
+    const m = L.marker([bs.lat, bs.lng], { icon }).addTo(map);
+    m.bindPopup(`
+      <div style="font-family:'Share Tech Mono',monospace;font-size:11px;min-width:200px;background:#071f36;color:#e0f4ff;padding:12px;border-radius:4px;border:2px solid #00b4d8">
+        <b style="color:#00b4d8;font-size:13px">📡 ${bs.id}</b><br>
+        <span style="color:#7ab3cc">${bs.name}</span>
+        <hr style="border-color:#0d3a5c;margin:6px 0">
+        <span style="color:#0cffcb">Буёв подключено:</span> <b>${bs.buoysConnected}</b><br>
+        <span style="color:#0cffcb">Зона покрытия:</span> <b>${bs.coverage} км</b><br>
+        <span style="color:#0cffcb">Протокол:</span> LoRaWAN 1.0.4<br>
+        <span style="color:#0cffcb">Статус:</span> <span style="color:#06d6a0">● АКТИВНА</span><br>
+        <span style="color:#3a6a88;font-size:9px;margin-top:4px;display:block">
+          ${bs.lat.toFixed(4)}°N ${bs.lng.toFixed(4)}°E
+        </span>
+      </div>
+    `);
+  });
+
+  // Legend
+  const legend = L.control({ position: 'bottomright' });
+  legend.onAdd = () => {
+    const div = L.DomUtil.create('div');
+    div.innerHTML = `
+      <div style="background:rgba(7,31,54,0.92);border:1px solid #0d3a5c;border-radius:4px;padding:10px 14px;font-family:'Share Tech Mono',monospace;font-size:10px;color:#e0f4ff;min-width:170px">
+        <div style="color:#0cffcb;letter-spacing:2px;margin-bottom:8px;font-size:9px">ЛЕГЕНДА</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#06d6a0;box-shadow:0 0 6px #06d6a0"></span> Буй — Онлайн</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ff6b35;box-shadow:0 0 6px #ff6b35"></span> Буй — Тревога</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ffd60a;box-shadow:0 0 6px #ffd60a"></span> Буй — Внимание</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ff2d55;opacity:0.6"></span> Буй — Оффлайн</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><span style="font-size:13px">📡</span> Базовая станция</div>
+        <div style="border-top:1px solid #0d3a5c;margin-top:6px;padding-top:6px;color:#3a6a88;font-size:9px">- - - Зона покрытия BS</div>
+        <div style="color:#3a6a88;font-size:9px;margin-top:4px">Yessenov CSM © 2024</div>
+      </div>`;
+    return div;
+  };
+  legend.addTo(map);
+
+  window._leafletMap = map;
+}
+
+// ===============================================
+// REAL-TIME UPDATES
+// ===============================================
+function updateSensorCards(buoy) {
+  if (!buoy || buoy.status === 'offline') return;
+  
+  const b = buoy;
+  
+  // pH
+  updateCard('val-ph', b.pH.toFixed(2) + ' <span>pH</span>', 'bar-ph', (b.pH-7)/2*100, b.pH < 7.8 || b.pH > 8.5 ? (b.pH < 7.0 ? 'danger' : 'warning') : 'good', 'card-ph');
+  
+  // Temp
+  updateCard('val-temp', b.temp.toFixed(1) + ' <span>°C</span>', 'bar-temp', b.temp/28*100, 'normal', 'card-temp');
+  
+  // DO
+  const doStatus = b.DO < 4 ? 'danger' : b.DO < 6 ? 'warning' : 'good';
+  updateCard('val-do', b.DO.toFixed(1) + ' <span>мг/л</span>', 'bar-do', b.DO/12*100, doStatus, 'card-do');
+  
+  // Turbidity
+  const turbStatus = b.turb > 100 ? 'danger' : b.turb > 50 ? 'warning' : 'normal';
+  updateCard('val-turb', b.turb.toFixed(1) + ' <span>NTU</span>', 'bar-turb', b.turb/100*100, turbStatus, 'card-turb');
+  
+  // EC
+  updateCard('val-ec', b.ec.toFixed(1) + ' <span>мСм/см</span>', 'bar-ec', b.ec/40*100, 'normal', 'card-ec');
+  
+  // TDS
+  updateCard('val-tds', b.tds.toFixed(0) + ' <span>мг/л</span>', 'bar-tds', b.tds/25000*100, 'normal', 'card-tds');
+  
+  // ORP
+  updateCard('val-orp', (b.orp > 0 ? '+' : '') + b.orp + ' <span>мВ</span>', 'bar-orp', (b.orp+500)/1000*100, 'normal', 'card-orp');
+  
+  // HC
+  const hcStatus = b.hc > 0.10 ? 'danger' : b.hc > 0.05 ? 'warning' : 'good';
+  updateCard('val-hc', b.hc.toFixed(3) + ' <span>мг/л</span>', 'bar-hc', b.hc/0.2*100, hcStatus, 'card-hc');
+}
+
+function updateCard(valId, valHtml, barId, barPct, status, cardId) {
+  const val = document.getElementById(valId);
+  if (val) val.innerHTML = valHtml;
+  const bar = document.getElementById(barId);
+  if (bar) bar.style.width = Math.min(100, Math.max(0, barPct)).toFixed(1) + '%';
+  const card = document.getElementById(cardId);
+  if (card) {
+    card.classList.remove('status-warning', 'status-danger', 'status-good');
+    if (status === 'warning') card.classList.add('status-warning');
+    if (status === 'danger') card.classList.add('status-danger');
+    if (status === 'good') card.classList.add('status-good');
+  }
+}
+
+function simulateNewData() {
+  const now = new Date();
+  const label = now.getHours().toString().padStart(2,'0') + ':' +
+                now.getMinutes().toString().padStart(2,'0') + ':' +
+                now.getSeconds().toString().padStart(2,'0');
+
+  BUOYS.forEach((b, i) => {
+    if (b.status === 'offline') return;
+    const fl = (v, d, mn, mx) => Math.min(mx, Math.max(mn, +(v + (Math.random()-0.5)*d).toFixed(3)));
+    b.pH   = fl(b.pH,   0.04, 6.5,  9.5);
+    b.temp = fl(b.temp, 0.1,  0,    30);
+    b.DO   = fl(b.DO,   0.15, 0,    14);
+    b.turb = fl(b.turb, 0.8,  0,    200);
+    b.ec   = fl(b.ec,   0.05, 0,    50);
+    b.tds  = fl(b.tds,  20,   0,    30000);
+    b.orp  = fl(b.orp,  3,   -500,  700);
+    b.hc   = fl(b.hc,   0.005, 0,   2);
+
+    // Push into THIS buoy's own history
+    const h = buoyHistory[i];
+    h.labels.push(label);
+    h.ph.push(b.pH);
+    h.do_.push(b.DO);
+    h.temp.push(b.temp);
+    h.ec.push(b.ec);
+    h.hc.push(b.hc);
+    h.turb.push(b.turb);
+    if (h.labels.length > 120) {
+      ['labels','ph','do_','temp','ec','hc','turb'].forEach(k => h[k].shift());
+    }
+
+    // Update roller item mini values
+    const setRI = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setRI(`ri${i}-ph`, b.pH.toFixed(2));
+    setRI(`ri${i}-t`,  b.temp.toFixed(1));
+    setRI(`ri${i}-do`, b.DO.toFixed(1));
+    setRI(`ri${i}-hc`, b.hc.toFixed(3));
+  });
+
+  // Update sensor cards and charts for selected buoy
+  updateSensorCards(BUOYS[selectedBuoy]);
+  reloadChartsForBuoy(selectedBuoy);
+
+  addPacket();
+  packetCount++;
+  const pcEl = document.getElementById('stat-packets');
+  if (pcEl) pcEl.textContent = packetCount;
+  const sbLast = document.getElementById('sb-last-packet');
+  if (sbLast) sbLast.textContent = now.toLocaleTimeString('ru-RU');
+}
+
+function addPacket() {
+  const b = BUOYS[Math.floor(Math.random() * 3)]; // only online buoys
+  const rssi = -85 - Math.floor(Math.random()*20);
+  
+  // Build hex payload
+  const phInt = Math.round(b.pH * 100).toString(16).padStart(4,'0');
+  const tempInt = Math.round(b.temp * 10).toString(16).padStart(4,'0');
+  const doInt = Math.round(b.DO * 100).toString(16).padStart(4,'0');
+  const turbInt = Math.round(b.turb).toString(16).padStart(4,'0');
+  const hex = `${phInt} ${tempInt} ${doInt} ${turbInt} ...`;
+  
+  const list = document.getElementById('packet-list');
+  if (!list) return;
+  
+  const item = document.createElement('div');
+  item.className = 'packet-item';
+  const now = new Date();
+  item.innerHTML = `<span class="packet-ts">${now.toLocaleTimeString('ru-RU')}</span><span class="packet-id">${b.id}</span><span class="packet-hex">${hex}</span><span class="packet-rssi">${rssi}dBm</span>`;
+  list.insertBefore(item, list.firstChild);
+  
+  // Keep max 30 packets
+  while (list.children.length > 30) list.removeChild(list.lastChild);
+}
+
+// ===============================================
+// UI CONTROLS
+// ===============================================
+function selectBuoy(idx) {
+  selectedBuoy = idx;
+  document.querySelectorAll('.buoy-card').forEach((c, i) => {
+    c.classList.toggle('active', i === idx);
+  });
+  updateSensorCards(BUOYS[idx]);
+  const sbBuoy = document.getElementById('sb-buoy');
+  if (sbBuoy) sbBuoy.textContent = BUOYS[idx].id;
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-view').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  
+  const tab = document.getElementById('tab-' + name);
+  if (tab) tab.classList.add('active');
+  
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    if (b.textContent.trim().toLowerCase().includes(name.substring(0,3).toLowerCase())) {
+      b.classList.add('active');
+    }
+  });
+
+  if (name === 'map') {
+    setTimeout(() => {
+      const mapEl = document.getElementById('caspian-map');
+      if (mapEl && !mapEl._leaflet_id) initMap();
+      else if (window._leafletMap) window._leafletMap.invalidateSize();
+    }, 100);
+  }
+}
+
+function setMobileActive(btn) {
+  document.querySelectorAll('.mobile-nav-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function testConnection() {
+  const dot = document.getElementById('server-dot');
+  const txt = document.getElementById('server-status-text');
+  dot.className = 'status-dot warning';
+  txt.textContent = 'ПОДКЛЮЧЕНИЕ...';
+  setTimeout(() => {
+    dot.className = 'status-dot';
+    txt.textContent = 'СЕРВЕР';
+  }, 2000);
+}
+
+function decodePacket() {
+  const hex = document.getElementById('test-hex').value.replace(/\s/g,'');
+  if (hex.length < 12) {
+    document.getElementById('decode-result').textContent = 'Недостаточно байт';
+    return;
+  }
+  try {
+    const bytes = hex.match(/.{1,2}/g).map(b => parseInt(b,16));
+    const view = new DataView(new Uint8Array(bytes).buffer);
+    const ph = view.getUint16(0,false) / 100;
+    const temp = view.getInt16(2,false) / 10;
+    const dO = view.getUint16(4,false) / 100;
+    const turb = view.getUint16(6,false);
+    const ec = view.getUint16(8,false) / 10;
+    const hc = bytes.length >= 12 ? view.getUint16(10,false) / 1000 : '—';
+    document.getElementById('decode-result').innerHTML =
+      `pH: <span style="color:#0cffcb">${ph.toFixed(2)}</span><br>` +
+      `Температура: <span style="color:#ff6b35">${temp.toFixed(1)}°C</span><br>` +
+      `DO: <span style="color:#00b4d8">${dO.toFixed(2)} мг/л</span><br>` +
+      `Мутность: <span style="color:#ffd60a">${turb} NTU</span><br>` +
+      `EC: <span style="color:#0cffcb">${ec.toFixed(1)} мСм/см</span><br>` +
+      `ΣHC: <span style="color:#06d6a0">${typeof hc === 'number' ? hc.toFixed(3) + ' мг/л' : hc}</span>`;
+  } catch(e) {
+    document.getElementById('decode-result').textContent = 'Ошибка: ' + e.message;
+  }
+}
+
+// ===============================================
+// CLOCK
+// ===============================================
+function updateClock() {
+  const el = document.getElementById('clock');
+  if (el) el.textContent = new Date().toLocaleTimeString('ru-RU');
+}
+
+// ===============================================
+// INIT
+// ===============================================
+window.addEventListener('DOMContentLoaded', () => {
+  updateClock();
+  setInterval(updateClock, 1000);
+  
+  buildRoller();
+  initCharts();
+  updateSensorCards(BUOYS[0]);
+  
+  // Map init for map tab (lazy)
+  // Simulate real-time every 5 seconds
+  setInterval(simulateNewData, 5000);
+  
+  // Add initial packets
+  for (let i = 0; i < 8; i++) addPacket();
+  packetCount = Math.floor(Math.random()*200 + 100);
+
+  // Nav buttons manual mapping
+  const navBtns = document.querySelectorAll('.nav-btn');
+  const tabNames = ['dashboard', 'history', 'map', 'settings'];
+  navBtns.forEach((btn, i) => {
+    btn.addEventListener('click', () => switchTab(tabNames[i]));
+  });
+});
+</script>
+
+<!-- Связующий слой с сервером: подменяет генерацию данных в браузере
+     на запросы к REST API. Подключается строго после основного сценария. -->
+<script src="/static/api-bridge.js"></script>
+<!-- MOBILE BOTTOM NAV (показывается только на телефоне < 480px) -->
+<nav class="mobile-nav" id="mobile-nav">
+  <button class="mobile-nav-btn active" onclick="switchTab('dashboard'); setMobileActive(this)">
+    <span class="icon">📊</span><span>Данные</span>
+  </button>
+  <button class="mobile-nav-btn" onclick="switchTab('map'); setMobileActive(this)">
+    <span class="icon">🗺️</span><span>Карта</span>
+  </button>
+  <button class="mobile-nav-btn" onclick="switchTab('history'); setMobileActive(this)">
+    <span class="icon">📈</span><span>История</span>
+  </button>
+  <button class="mobile-nav-btn" onclick="switchTab('settings'); setMobileActive(this)">
+    <span class="icon">⚙️</span><span>Настройки</span>
+  </button>
+</nav>
+
+</body>
+</html>

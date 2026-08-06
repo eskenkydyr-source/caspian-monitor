@@ -1,0 +1,31 @@
+services:
+  api:
+    build: ./backend
+    container_name: caspian-api
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      DB_PATH: /data/caspian.db
+      FRONTEND_DIR: /app/frontend
+      INGEST_TOKEN: ${INGEST_TOKEN:-}
+      OFFLINE_AFTER_SEC: ${OFFLINE_AFTER_SEC:-600}
+      GATEWAY_NAME: ${GATEWAY_NAME:-BS-AKTAU}
+    volumes:
+      - caspian-data:/data
+      - ./frontend:/app/frontend:ro
+    restart: unless-stopped
+
+  simulator:
+    build: ./simulator
+    container_name: caspian-simulator
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_URL: http://api:8000
+      SIM_INTERVAL: ${SIM_INTERVAL:-10}
+      INGEST_TOKEN: ${INGEST_TOKEN:-}
+    restart: unless-stopped
+
+volumes:
+  caspian-data:
