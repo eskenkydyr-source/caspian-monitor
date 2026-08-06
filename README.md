@@ -89,8 +89,8 @@ ChirpStack — без изменений в программном коде.
 ### 4.1. Основной способ — Docker Compose
 
 ```bash
-git clone https://github.com/eskenkydyr-source/Caspian_monitor.git
-cd Caspian_monitor
+git clone https://github.com/eskenkydyr-source/caspian-monitor.git
+cd caspian-monitor
 cp .env.example .env
 docker compose up --build
 ```
@@ -267,7 +267,7 @@ curl -X POST http://localhost:8000/api/decode \
 ## 10. Структура проекта
 
 ```
-Caspian_monitor/
+caspian-monitor/
 ├── backend/                      Серверная часть
 │   ├── app/
 │   │   ├── main.py               Приложение FastAPI, маршруты API
