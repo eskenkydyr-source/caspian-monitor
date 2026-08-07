@@ -8,3 +8,12 @@ venv/
 data/
 .env
 .DS_Store
+.gstack/
+
+# Артефакты сборки прошивки STM32
+hardware/software/build/
+*.elf
+*.map
+*.lst
+*.o
+*.d
